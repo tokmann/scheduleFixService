@@ -24,14 +24,14 @@ Schedule Analyzer API — это сервис, который анализиру
 ### 📌 Запуск без Docker
 ```sh
 # Клонируем репозиторий
-git clone https://github.com/your_username/schedule-analyzer.git
-cd schedule-analyzer
+git clone https://github.com/tokmann/ScheduleFixService.git
+cd ScheduleFixService
 
 # Сборка проекта
-mvn clean package
+mvn clean install
 
 # Запуск приложения
-java -jar target/schedule-app.jar
+java -jar target/ScheduleFixService-1.0.jar
 ```
 Приложение будет доступно на `http://localhost:8080`.
 
@@ -39,11 +39,14 @@ java -jar target/schedule-app.jar
 
 ### 🐳 Запуск в Docker
 ```sh
-# Собираем Docker-образ
-docker build -t schedule-analyzer .
+# Загрузите Docker-образ приложения из Docker Hub:
+docker pull tokmann/schedulefixservice-app:1.0
 
-# Запускаем контейнер
-docker run -p 8080:8080 schedule-analyzer
+# Запустите контейнер с приложением:
+docker run -p 8080:8080 tokmann/schedulefixservice-app:1.0
+
+# API приложение доступно по адресу:
+http://localhost:8080
 ```
 
 Приложение запустится в контейнере, и API будет доступен по адресу `http://localhost:8080`.
