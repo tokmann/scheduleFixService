@@ -1,12 +1,37 @@
 package app.model;
 
 
+import jakarta.persistence.*;
 
+@Entity
 public class BadSpace {
-    private String victim;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "first_entry_id")
     private ScheduleEntry firstEntry;
+
+    @ManyToOne
+    @JoinColumn(name = "second_entry_id")
     private ScheduleEntry secondEntry;
+
+    private String victim;
+
     private String descpription;
+
+
+
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     public String getVictim() {
         return victim;

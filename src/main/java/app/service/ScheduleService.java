@@ -1,12 +1,15 @@
 package app.service;
 
 import app.model.*;
+import app.repository.BadSpaceRepository;
+import app.repository.ScheduleEntryRepository;
 import app.utils.GroupParse;
 import app.utils.TeacherParse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import app.model.ScheduleEntry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,6 +39,12 @@ public class ScheduleService {
     @Autowired
     private GroupParse groupParse;
 
+    @Autowired
+    private BadSpaceRepository badSpaceRepository;
+
+    @Autowired
+    private ScheduleEntryRepository scheduleEntryRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String baseURL = "https://schedule-of.mirea.ru/schedule/api/search";
 
@@ -57,68 +66,10 @@ public class ScheduleService {
         return iCalLink;
     }
 
-    public List<BadSpace> findBadSpaces(String criteria) throws Exception {
-        String iCalLink = getICalLink(criteria);
-        System.out.println("Получена iCalLink");
-
-        String iCalContent = iCalService.getICalContent(iCalLink);
-        System.out.println("Получен iCalContent");
-
-        List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-        System.out.println("Получен список ScheduleEntry");
-
-        return getBadSpaces(entries, criteria);
-    }
-
-    public List<BadSpace> findAllBadSpaces() {
-        List<BadSpace> badSpaces = new ArrayList<>();
-        String[] groups = groupParse.groups;
-        for (String group : groups) {
-            if (group.length() == 10) {
-                try {
-                    String iCalLink = getICalLink(group);
-                    System.out.println("Получена iCalLink");
-
-                    String iCalContent = iCalService.getICalContent(iCalLink);
-                    System.out.println("Получен iCalContent");
-
-                    List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-                    System.out.println("Получен список ScheduleEntry");
-
-                    badSpaces.addAll(getBadSpaces(entries, group));
-                    System.out.println("Список badSpaces пополнен");
-                } catch (Exception e) {
-                    System.err.println("Ошибка при поиске группы " + group + ": " + e.getMessage());
-                }
-            }
-        }
-        String[] teachers = teacherParse.teachersList;
-        for (String teacher : teachers) {
-            try {
-                String iCalLink = getICalLink(teacher);
-                System.out.println("Получена iCalLink");
-
-                String iCalContent = iCalService.getICalContent(iCalLink);
-                System.out.println("Получен iCalContent");
-
-                List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-                System.out.println("Получен список ScheduleEntry");
-
-                badSpaces.addAll(getBadSpaces(entries, teacher));
-                System.out.println("Список badSpaces пополнен");
-            } catch (Exception e) {
-                System.err.println("Ошибка при поиске преподавателя " + teacher + ": " + e.getMessage());
-            }
-        }
-        System.out.println("Поиск badSpaces завершен");
-        return badSpaces;
-    }
-
     public List<BadSpace> getBadSpaces(List<ScheduleEntry> unsortedEntries, String victim) {
         List<BadSpace> badSpaces = new ArrayList<>();
 
         List<List<ScheduleEntry>> entriesDays = entriesSortingService.sortEntries(unsortedEntries);
-        System.out.println("Список ScheduleEntries отсортирован");
 
         List<List<String>> foundBadSpaces = new ArrayList<>();
 
@@ -272,5 +223,66 @@ public class ScheduleService {
             newBadSpace.add(description);
         }
         foundBadSpaces.add(newBadSpace);
+    }
+
+    public void saveBadSpaces(List<BadSpace> badSpaces) {
+        for (BadSpace badSpace : badSpaces) {
+
+            if (badSpace.getFirstEntry() != null && badSpace.getFirstEntry().getId() == null) {
+                scheduleEntryRepository.save(badSpace.getFirstEntry());
+            }
+            if (badSpace.getSecondEntry() != null && badSpace.getSecondEntry().getId() == null) {
+                scheduleEntryRepository.save(badSpace.getSecondEntry());
+            }
+
+            badSpaceRepository.save(badSpace);
+        }
+    }
+
+    public List<BadSpace> findBadSpaces(String criteria) throws Exception {
+
+        List<BadSpace> badSpacesFromDb = badSpaceRepository.findByVictim(criteria);
+        if (!badSpacesFromDb.isEmpty()) {
+            return badSpacesFromDb;
+        }
+
+
+        String iCalLink = getICalLink(criteria);
+        String iCalContent = iCalService.getICalContent(iCalLink);
+        List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
+        List<BadSpace> badSpaces = getBadSpaces(entries, criteria);
+
+        saveBadSpaces(badSpaces);
+        return badSpaces;
+    }
+
+    public List<BadSpace> findAllBadSpaces() {
+        return badSpaceRepository.findAll();
+    }
+
+    @Scheduled(fixedRate = 60000*60*24) // Бэкграунд запуск каждые 24 часа
+    public void checkAndSaveBadSpaces() {
+        String[] groups = groupParse.groups;
+        String[] teachers = teacherParse.teachersList;
+
+        for (String group : groups) {
+            if (group.length() == 10) {
+                try {
+                    List<BadSpace> badSpaces = findBadSpaces(group);
+                    saveBadSpaces(badSpaces);
+                } catch (Exception e) {
+                    System.err.println("Ошибка при обработке группы " + group + ": " + e.getMessage());
+                }
+            }
+        }
+
+        for (String teacher : teachers) {
+            try {
+                List<BadSpace> badSpaces = findBadSpaces(teacher);
+                saveBadSpaces(badSpaces);
+            } catch (Exception e) {
+                System.err.println("Ошибка при обработке преподавателя " + teacher + ": " + e.getMessage());
+            }
+        }
     }
 }
