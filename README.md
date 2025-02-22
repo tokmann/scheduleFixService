@@ -25,7 +25,7 @@ Schedule Fix Service API — это сервис, который анализи�
 1. Убедитесь, что у вас установлен Docker и Docker Compose.
 2. Склонируйте репозиторий:
   git clone https://github.com/tokmann/scheduleFixService.git
-  cd schedule-fix-service
+  cd scheduleFixService
 3. Запустите проект:
   docker-compose up
 ```
