@@ -2,6 +2,7 @@ package app.service;
 
 import app.model.*;
 import app.utils.GroupParse;
+import app.utils.TeacherParse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import app.model.ScheduleEntry;
@@ -9,9 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import app.model.ScheduleEntry;
 
 @Service
 public class ScheduleService {
@@ -31,6 +30,11 @@ public class ScheduleService {
     @Autowired
     private ScheduleConstant scheduleConstant;
 
+    @Autowired
+    private TeacherParse teacherParse;
+
+    @Autowired
+    private GroupParse groupParse;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String baseURL = "https://schedule-of.mirea.ru/schedule/api/search";
@@ -68,7 +72,7 @@ public class ScheduleService {
 
     public List<BadSpace> findAllBadSpaces() {
         List<BadSpace> badSpaces = new ArrayList<>();
-        List<String> groups = Arrays.asList(GroupParse.groups);
+        String[] groups = groupParse.groups;
         for (String group : groups) {
             if (group.length() == 10) {
                 try {
@@ -86,6 +90,24 @@ public class ScheduleService {
                 } catch (Exception e) {
                     System.err.println("Ошибка при поиске группы " + group + ": " + e.getMessage());
                 }
+            }
+        }
+        String[] teachers = teacherParse.teachersList;
+        for (String teacher : teachers) {
+            try {
+                String iCalLink = getICalLink(teacher);
+                System.out.println("Получена iCalLink");
+
+                String iCalContent = iCalService.getICalContent(iCalLink);
+                System.out.println("Получен iCalContent");
+
+                List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
+                System.out.println("Получен список ScheduleEntry");
+
+                badSpaces.addAll(getBadSpaces(entries, teacher));
+                System.out.println("Список badSpaces пополнен");
+            } catch (Exception e) {
+                System.err.println("Ошибка при поиске преподавателя " + teacher + ": " + e.getMessage());
             }
         }
         System.out.println("Поиск badSpaces завершен");
