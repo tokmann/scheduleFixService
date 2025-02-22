@@ -1,4 +1,4 @@
-# 📅 Schedule Fix Fix API
+# 📅 Schedule Fix API
 
 ## 🚀 Описание
 Schedule Fix Service API — это сервис, который анализирует расписание занятий и выявляет неудобства в нём. Например:
