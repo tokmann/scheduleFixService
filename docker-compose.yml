@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: tokmann/schedulefixservice-app:2.0
     container_name: schedule-fix-service
     ports:
       - "8080:8080"
@@ -14,6 +15,10 @@ services:
        SPRING_DATASOURCE_PASSWORD: tokman
     depends_on:
        - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
 
   db:
      image: postgres:latest
