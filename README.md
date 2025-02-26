@@ -1,4 +1,4 @@
-# 📅 Schedule Fix Fix API
+# 📅 Schedule Fix API
 
 ## 🚀 Описание
 Schedule Fix Service API — это сервис, который анализирует расписание занятий и выявляет неудобства в нём. Например:
@@ -24,8 +24,8 @@ Schedule Fix Service API — это сервис, который анализи�
 ```sh
 1. Убедитесь, что у вас установлен Docker и Docker Compose.
 2. Склонируйте репозиторий:
-  git clone https://github.com/tokmann/schedule-fix-service.git
-  cd schedule-fix-service
+  git clone https://github.com/tokmann/scheduleFixService.git
+  cd scheduleFixService
 3. Запустите проект:
   docker-compose up
 ```
