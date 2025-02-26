@@ -1,5 +1,6 @@
 package app.service;
 
+import app.model.BadSpace;
 import app.model.ScheduleEntry;
 import biweekly.Biweekly;
 import biweekly.ICalendar;
@@ -10,6 +11,7 @@ import java.util.List;
 import biweekly.property.*;
 import biweekly.util.ICalDate;
 import biweekly.util.Recurrence;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -18,6 +20,7 @@ import java.util.regex.Pattern;
 
 
 @Service
+@EnableAsync
 public class ICalParser {
 
     public List<ScheduleEntry> parseICalContent(String iCalData) {
@@ -134,7 +137,6 @@ public class ICalParser {
         return convertDateToLocalDateTime(dateStart.getValue());
     }
 
-
     private static LocalDateTime convertToLocalDateTime(DateEnd dateEnd) {
         return convertDateToLocalDateTime(dateEnd.getValue());
     }
@@ -158,5 +160,6 @@ public class ICalParser {
         String formattedDate = zonedDateTime.format(outputFormatter);
         return formattedDate;
     }
+
 
 }

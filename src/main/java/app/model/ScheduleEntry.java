@@ -1,22 +1,10 @@
 package app.model;
 
-
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-
+import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
-@Entity
+@Component
 public class ScheduleEntry {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-
-
     private String name;
 
     private String readableTimeStart;
@@ -85,13 +73,6 @@ public class ScheduleEntry {
 
     public void setTeacher(String teacher) {
         this.teacher = teacher;
-    }
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
     }
 
     @Override

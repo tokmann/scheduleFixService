@@ -1,10 +1,9 @@
 package app.controller;
 
-import app.model.BadSpace;
 import app.service.ScheduleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/schedule-bad-spaces")
@@ -13,16 +12,18 @@ public class ScheduleController {
     @Autowired
     private ScheduleService scheduleService;
 
-    @GetMapping("/match/{criteria}")
-    public List<BadSpace> getBadSpaces(@PathVariable("criteria") String criteria) throws Exception {
-        System.out.println("Запрос отправлен");
-        return scheduleService.findBadSpaces(criteria);
+    @GetMapping("/match-async/{criteria}")
+    public String startBadSpaceSearch(@PathVariable("criteria") String criteria) throws Exception {
+        return scheduleService.startBadSpaceSearch(criteria);
     }
 
-    @GetMapping("/all")
-    public List<BadSpace> getAllBadSpaces() throws Exception {
-        System.out.println("Запрос отправлен");
-        return scheduleService.findAllBadSpaces();
+    @GetMapping("/find-all-async")
+    public String startBadSpaceSearch() throws Exception {
+        return scheduleService.startAllBadSpaceSearch();
     }
 
+    @GetMapping("/status/{taskId}")
+    public ResponseEntity<?> getTaskStatus(@PathVariable("taskId") String taskId) throws Exception {
+        return scheduleService.getTaskStatus(taskId);
+    }
 }

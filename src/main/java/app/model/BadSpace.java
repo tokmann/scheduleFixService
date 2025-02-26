@@ -1,37 +1,16 @@
 package app.model;
+import org.springframework.stereotype.Component;
 
-
-import jakarta.persistence.*;
-
-@Entity
+@Component
 public class BadSpace {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @ManyToOne
-    @JoinColumn(name = "first_entry_id")
     private ScheduleEntry firstEntry;
 
-    @ManyToOne
-    @JoinColumn(name = "second_entry_id")
     private ScheduleEntry secondEntry;
 
     private String victim;
 
-    private String descpription;
-
-
-
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
+    private String description;
 
     public String getVictim() {
         return victim;
@@ -57,11 +36,11 @@ public class BadSpace {
         this.secondEntry = secondEntry;
     }
 
-    public String getDescpription() {
-        return descpription;
+    public String getDescription() {
+        return description;
     }
 
-    public void setDescpription(String descpription) {
-        this.descpription = descpription;
+    public void setDescription(String descpription) {
+        this.description = descpription;
     }
 }

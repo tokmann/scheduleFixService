@@ -1,19 +1,24 @@
 package app.service;
 
 import app.model.*;
-import app.repository.BadSpaceRepository;
-import app.repository.ScheduleEntryRepository;
 import app.utils.GroupParse;
 import app.utils.TeacherParse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import app.model.ScheduleEntry;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Service
 public class ScheduleService {
@@ -39,14 +44,56 @@ public class ScheduleService {
     @Autowired
     private GroupParse groupParse;
 
-    @Autowired
-    private BadSpaceRepository badSpaceRepository;
-
-    @Autowired
-    private ScheduleEntryRepository scheduleEntryRepository;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String baseURL = "https://schedule-of.mirea.ru/schedule/api/search";
+
+    private final ConcurrentHashMap<String, Future<List<BadSpace>>> tasks = new ConcurrentHashMap<>();
+    private final ExecutorService executor = Executors.newFixedThreadPool(5);
+
+    public String startBadSpaceSearch(String criteria) {
+        String taskId = UUID.randomUUID().toString();
+
+        Future<List<BadSpace>> future = executor.submit(() -> findBadSpaces(criteria));
+
+        tasks.put(taskId, future);
+
+        return taskId;
+
+    }
+
+    public String startAllBadSpaceSearch() {
+        String taskId = UUID.randomUUID().toString();
+
+        Future<List<BadSpace>> future = executor.submit(() -> findAllBadSpaces());
+
+        tasks.put(taskId, future);
+
+        return taskId;
+    }
+
+    public ResponseEntity<?> getTaskStatus(String taskId) {
+        Future<List<BadSpace>> future = tasks.get(taskId);
+
+        if (future == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Task not found");
+        }
+
+        if (!future.isDone()) {
+            return ResponseEntity.ok("Status: in progress");
+        }
+
+        try {
+            return ResponseEntity.ok(future.get());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing task");
+        }
+    }
+
+
+    @PreDestroy
+    public void shutdownExecutor() {
+        executor.shutdown(); // Закрываем пул потоков
+    }
 
 
     public String getICalLink(String criteria) throws Exception {
@@ -70,7 +117,9 @@ public class ScheduleService {
         List<BadSpace> badSpaces = new ArrayList<>();
 
         List<List<ScheduleEntry>> entriesDays = entriesSortingService.sortEntries(unsortedEntries);
-
+        for (List<ScheduleEntry> entries : entriesDays) {
+            System.out.println(entries);
+        }
         List<List<String>> foundBadSpaces = new ArrayList<>();
 
         System.out.println("Поиск badSpaces...");
@@ -165,7 +214,7 @@ public class ScheduleService {
         badSpace.setFirstEntry(entry1);
         badSpace.setSecondEntry(entry2);
         badSpace.setVictim(victim);
-        badSpace.setDescpription(description);
+        badSpace.setDescription(description);
         return badSpace;
     }
 
@@ -178,7 +227,7 @@ public class ScheduleService {
         if (badSpace.getSecondEntry() != null) {
             secondName = badSpace.getSecondEntry().getName() == null ? "" : badSpace.getSecondEntry().getName();
         }
-        String description = badSpace.getDescpription();
+        String description = badSpace.getDescription();
         for (List<String> foundBadSpace : foundBadSpaces) {
             if (firstName.equals(foundBadSpace.get(0)) && secondName.equals(foundBadSpace.get(1)) && description.equals(foundBadSpace.get(2))) {
                 return true;
@@ -214,7 +263,7 @@ public class ScheduleService {
         if (badSpace.getSecondEntry() != null) {
             secondName = badSpace.getSecondEntry().getName() == null ? "" : badSpace.getSecondEntry().getName();
         }
-        String description = badSpace.getDescpription();
+        String description = badSpace.getDescription();
         List<String> newBadSpace = new ArrayList<>();
         newBadSpace.add(firstName); newBadSpace.add(secondName);
         if (description.contains("Позднее начало пар в этот день")) {
@@ -225,64 +274,50 @@ public class ScheduleService {
         foundBadSpaces.add(newBadSpace);
     }
 
-    public void saveBadSpaces(List<BadSpace> badSpaces) {
-        for (BadSpace badSpace : badSpaces) {
-
-            if (badSpace.getFirstEntry() != null && badSpace.getFirstEntry().getId() == null) {
-                scheduleEntryRepository.save(badSpace.getFirstEntry());
-            }
-            if (badSpace.getSecondEntry() != null && badSpace.getSecondEntry().getId() == null) {
-                scheduleEntryRepository.save(badSpace.getSecondEntry());
-            }
-
-            badSpaceRepository.save(badSpace);
-        }
-    }
-
     public List<BadSpace> findBadSpaces(String criteria) throws Exception {
-
-        List<BadSpace> badSpacesFromDb = badSpaceRepository.findByVictim(criteria);
-        if (!badSpacesFromDb.isEmpty()) {
-            return badSpacesFromDb;
-        }
-
 
         String iCalLink = getICalLink(criteria);
         String iCalContent = iCalService.getICalContent(iCalLink);
         List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
         List<BadSpace> badSpaces = getBadSpaces(entries, criteria);
 
-        saveBadSpaces(badSpaces);
         return badSpaces;
     }
 
-    public List<BadSpace> findAllBadSpaces() {
-        return badSpaceRepository.findAll();
-    }
+    public List<BadSpace> findAllBadSpaces() throws Exception {
+        List<BadSpace> badSpaces = new ArrayList<>();
 
-    @Scheduled(fixedRate = 60000*60*24) // Бэкграунд запуск каждые 24 часа
-    public void checkAndSaveBadSpaces() {
-        String[] groups = groupParse.groups;
-        String[] teachers = teacherParse.teachersList;
-
-        for (String group : groups) {
+        for (String group : groupParse.groups) {
             if (group.length() == 10) {
                 try {
-                    List<BadSpace> badSpaces = findBadSpaces(group);
-                    saveBadSpaces(badSpaces);
+                    String iCalLink = getICalLink(group);
+
+                    String iCalContent = iCalService.getICalContent(iCalLink);
+
+                    List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
+
+                    badSpaces.addAll(getBadSpaces(entries, group));
                 } catch (Exception e) {
-                    System.err.println("Ошибка при обработке группы " + group + ": " + e.getMessage());
+                    continue;
                 }
             }
         }
 
-        for (String teacher : teachers) {
+        for (String teacher : teacherParse.teachersList) {
             try {
-                List<BadSpace> badSpaces = findBadSpaces(teacher);
-                saveBadSpaces(badSpaces);
+                String iCalLink = getICalLink(teacher);
+
+                String iCalContent = iCalService.getICalContent(iCalLink);
+
+                List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
+
+                badSpaces.addAll(getBadSpaces(entries, teacher));
             } catch (Exception e) {
-                System.err.println("Ошибка при обработке преподавателя " + teacher + ": " + e.getMessage());
+                continue;
             }
         }
+
+        return badSpaces;
     }
+
 }
