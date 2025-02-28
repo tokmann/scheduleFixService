@@ -26,6 +26,13 @@
                 <configuration>
                     <source>23</source>
                     <target>23</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.36</version>
+                        </path>
+                        </annotationProcessorPaths>
                 </configuration>
             </plugin>
 
@@ -80,12 +87,6 @@
             <groupId>net.sf.biweekly</groupId>
             <artifactId>biweekly</artifactId>
             <version>0.6.8</version>
-        </dependency>
-
-        <dependency>
-                <groupId>org.apache.poi</groupId>
-                <artifactId>poi-ooxml</artifactId>
-                <version>5.2.3</version>
         </dependency>
 
     </dependencies>

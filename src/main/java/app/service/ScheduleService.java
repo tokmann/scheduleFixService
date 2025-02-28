@@ -92,7 +92,7 @@ public class ScheduleService {
 
     @PreDestroy
     public void shutdownExecutor() {
-        executor.shutdown(); // Закрываем пул потоков
+        executor.shutdown();
     }
 
 
@@ -117,9 +117,6 @@ public class ScheduleService {
         List<BadSpace> badSpaces = new ArrayList<>();
 
         List<List<ScheduleEntry>> entriesDays = entriesSortingService.sortEntries(unsortedEntries);
-        for (List<ScheduleEntry> entries : entriesDays) {
-            System.out.println(entries);
-        }
         List<List<String>> foundBadSpaces = new ArrayList<>();
 
         System.out.println("Поиск badSpaces...");

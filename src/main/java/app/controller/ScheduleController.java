@@ -12,12 +12,12 @@ public class ScheduleController {
     @Autowired
     private ScheduleService scheduleService;
 
-    @GetMapping("/match-async/{criteria}")
+    @PostMapping("/match-async/{criteria}")
     public String startBadSpaceSearch(@PathVariable("criteria") String criteria) throws Exception {
         return scheduleService.startBadSpaceSearch(criteria);
     }
 
-    @GetMapping("/find-all-async")
+    @PostMapping("/find-all-async")
     public String startBadSpaceSearch() throws Exception {
         return scheduleService.startAllBadSpaceSearch();
     }
