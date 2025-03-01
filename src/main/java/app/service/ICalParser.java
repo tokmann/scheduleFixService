@@ -152,10 +152,8 @@ public class ICalParser {
         DateTimeFormatter inputFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
         LocalDateTime localDateTime = LocalDateTime.parse(inputDate, inputFormatter);
 
-        // Конвертируем в ZonedDateTime с учётом часового пояса MSK (UTC+3)
         ZonedDateTime zonedDateTime = localDateTime.atZone(ZoneId.of("Europe/Moscow"));
 
-        // Форматируем в требуемый вид
         DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss z yyyy", Locale.forLanguageTag("ru"));
         String formattedDate = zonedDateTime.format(outputFormatter);
         return formattedDate;

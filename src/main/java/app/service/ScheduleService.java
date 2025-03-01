@@ -11,7 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import java.time.Duration;
+
+import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -117,86 +118,73 @@ public class ScheduleService {
         List<BadSpace> badSpaces = new ArrayList<>();
 
         List<List<ScheduleEntry>> entriesDays = entriesSortingService.sortEntries(unsortedEntries);
-        List<List<String>> foundBadSpaces = new ArrayList<>();
 
         System.out.println("Поиск badSpaces...");
+
         for (List<ScheduleEntry> entryAtThisDay : entriesDays) {
-            if (entryAtThisDay.getFirst().getStartTime().toLocalTime().
-                    isAfter(scheduleConstant.LATE_START_THRESHOLD)) {
-                String description = "Позднее начало пар в этот день: " +
-                        entryAtThisDay.getFirst().getStartTime().toLocalTime();
-                BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null,
-                        victim, description); //Новый badSpace
-                if (!checkForExistenceLateStart(badSpace, foundBadSpaces, "Позднее начало пар в этот день")) { //Проверка на уже существование
+            if (entryAtThisDay.getFirst().getStartTime().toLocalDate().isAfter(scheduleConstant.TODAY_DATE)) {
+
+                if (entryAtThisDay.getFirst().getStartTime().toLocalTime().
+                        isAfter(scheduleConstant.LATE_START_THRESHOLD)) {
+                    String description = "Позднее начало пар в этот день: " +
+                            entryAtThisDay.getFirst().getStartTime().toLocalTime();
+                    BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null,
+                            victim, description);
                     badSpaces.add(badSpace);
-                    addNewBadSpace(badSpace, foundBadSpaces);
                 }
-            }
 
-            if (entryAtThisDay.size() == 1) {
-                String description = "Одна пара в этот день";
-                BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null, victim, description);
-                if (!checkForExistence(badSpace, foundBadSpaces)) {
+
+                if (entryAtThisDay.size() == 1) {
+                    String description = "Одна пара в этот день";
+                    BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null, victim, description);
                     badSpaces.add(badSpace);
-                    addNewBadSpace(badSpace, foundBadSpaces);
-                }
-            }
-
-
-            for (int i = 0; i < entryAtThisDay.size() - 1; i++) {
-
-                ScheduleEntry current = entryAtThisDay.get(i);
-                ScheduleEntry next = entryAtThisDay.get(i + 1);
-
-                Duration gap = Duration.between(current.getEndTime(), next.getStartTime());
-                long gapTime = gap.toMinutes();
-
-                String currentName = current.getName();
-                String nextName = next.getName();
-
-                String currentCampus = null;
-                String nextCampus = null;
-                if (current.getClassroom() != null) {
-                    currentCampus = current.getClassroom().split(" ")[1];
-
-                }
-                if (next.getClassroom() != null) {
-                    nextCampus = next.getClassroom().split(" ")[1];
                 }
 
-                if (currentName.contains("Физическая культура и спорт") && gapTime < 30) {
-                    String description = "Маленький перерыв после ФИЗО";
-                    BadSpace badSpace = createBadSpace(current, next, victim, description); //Новый badSpace
-                    if (!checkForExistence(badSpace, foundBadSpaces)) { //Проверка на уже существование
-                        badSpaces.add(badSpace);
-                        addNewBadSpace(badSpace, foundBadSpaces);
+
+                for (int i = 0; i < entryAtThisDay.size() - 1; i++) {
+
+                    ScheduleEntry current = entryAtThisDay.get(i);
+                    ScheduleEntry next = entryAtThisDay.get(i + 1);
+
+                    Duration gap = Duration.between(current.getEndTime(), next.getStartTime());
+                    long gapTime = gap.toMinutes();
+
+                    String currentName = current.getName();
+                    String nextName = next.getName();
+
+                    String currentCampus = null;
+                    String nextCampus = null;
+                    if (current.getClassroom() != null) {
+                        currentCampus = current.getClassroom().split(" ")[1];
+
                     }
-                }
-                if (gapTime > 100) {
-                    String description = "Длинное окно: " + gapTime + " минут";
-                    BadSpace badSpace = createBadSpace(current, next, victim, description); //Новый badSpace
-                    if (!checkForExistence(badSpace, foundBadSpaces)) { //Проверка на уже существование
-                        badSpaces.add(badSpace);
-                        addNewBadSpace(badSpace, foundBadSpaces);
+                    if (next.getClassroom() != null) {
+                        nextCampus = next.getClassroom().split(" ")[1];
                     }
-                }
-                if (currentCampus != null && nextCampus != null && !nextCampus.equals("СДО")
-                        && !currentCampus.equals("СДО")) {
-                    if (!currentCampus.equals(nextCampus)) {
-                        String description = "Переход между корпусами";
-                        BadSpace badSpace = createBadSpace(current, next, victim, description);  //Новый badSpace
-                        if (!checkForExistence(badSpace, foundBadSpaces)) { //Проверка на уже существование
+
+
+                    if (currentName.contains("Физическая культура и спорт") && gapTime < 30) {
+                        String description = "Маленький перерыв после ФИЗО";
+                        BadSpace badSpace = createBadSpace(current, next, victim, description);
+                        badSpaces.add(badSpace);
+                    }
+                    if (gapTime > 100) {
+                        String description = "Длинное окно: " + gapTime + " минут";
+                        BadSpace badSpace = createBadSpace(current, next, victim, description);
+                        badSpaces.add(badSpace);
+                    }
+                    if (currentCampus != null && nextCampus != null && !nextCampus.equals("СДО")
+                            && !currentCampus.equals("СДО")) {
+                        if (!currentCampus.equals(nextCampus)) {
+                            String description = "Переход между корпусами";
+                            BadSpace badSpace = createBadSpace(current, next, victim, description);
                             badSpaces.add(badSpace);
-                            addNewBadSpace(badSpace, foundBadSpaces);
                         }
                     }
-                }
-                if (nextName.contains("Физическая культура и спорт") && gapTime < 30) {
-                    String description = "Маленький перерыв после физо";
-                    BadSpace badSpace = createBadSpace(current, next, victim, description);
-                    if (!checkForExistence(badSpace, foundBadSpaces)) {
+                    if (nextName.contains("Физическая культура и спорт") && gapTime < 30) {
+                        String description = "Маленький перерыв после физо";
+                        BadSpace badSpace = createBadSpace(current, next, victim, description);
                         badSpaces.add(badSpace);
-                        addNewBadSpace(badSpace, foundBadSpaces);
                     }
                 }
             }
@@ -212,64 +200,10 @@ public class ScheduleService {
         badSpace.setSecondEntry(entry2);
         badSpace.setVictim(victim);
         badSpace.setDescription(description);
+
         return badSpace;
     }
 
-    private static boolean checkForExistence(BadSpace badSpace, List<List<String>> foundBadSpaces) {
-        String firstName = "", secondName = "";
-        if (badSpace.getFirstEntry() != null) {
-            firstName = badSpace.getFirstEntry().getName() == null ? "" : badSpace.getFirstEntry().getName();
-
-        }
-        if (badSpace.getSecondEntry() != null) {
-            secondName = badSpace.getSecondEntry().getName() == null ? "" : badSpace.getSecondEntry().getName();
-        }
-        String description = badSpace.getDescription();
-        for (List<String> foundBadSpace : foundBadSpaces) {
-            if (firstName.equals(foundBadSpace.get(0)) && secondName.equals(foundBadSpace.get(1)) && description.equals(foundBadSpace.get(2))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean checkForExistenceLateStart(BadSpace badSpace, List<List<String>> foundBadSpaces, String n) {
-        String firstName = "", secondName = "";
-        if (badSpace.getFirstEntry() != null) {
-            firstName = badSpace.getFirstEntry().getName() == null ? "" : badSpace.getFirstEntry().getName();
-
-        }
-        if (badSpace.getSecondEntry() != null) {
-            secondName = badSpace.getSecondEntry().getName() == null ? "" : badSpace.getSecondEntry().getName();
-        }
-        String description = n;
-        for (List<String> foundBadSpace : foundBadSpaces) {
-            if (firstName.equals(foundBadSpace.get(0)) && secondName.equals(foundBadSpace.get(1)) && description.equals(foundBadSpace.get(2))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void addNewBadSpace(BadSpace badSpace, List<List<String>> foundBadSpaces) {
-        String firstName = "", secondName = "";
-        if (badSpace.getFirstEntry() != null) {
-            firstName = badSpace.getFirstEntry().getName() == null ? "" : badSpace.getFirstEntry().getName();
-
-        }
-        if (badSpace.getSecondEntry() != null) {
-            secondName = badSpace.getSecondEntry().getName() == null ? "" : badSpace.getSecondEntry().getName();
-        }
-        String description = badSpace.getDescription();
-        List<String> newBadSpace = new ArrayList<>();
-        newBadSpace.add(firstName); newBadSpace.add(secondName);
-        if (description.contains("Позднее начало пар в этот день")) {
-            newBadSpace.add("Позднее начало пар в этот день");
-        } else {
-            newBadSpace.add(description);
-        }
-        foundBadSpaces.add(newBadSpace);
-    }
 
     public List<BadSpace> findBadSpaces(String criteria) throws Exception {
 
@@ -294,8 +228,8 @@ public class ScheduleService {
                     List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
 
                     badSpaces.addAll(getBadSpaces(entries, group));
-                } catch (Exception e) {
-                    continue;
+                } catch (Exception _) {
+
                 }
             }
         }
@@ -309,8 +243,8 @@ public class ScheduleService {
                 List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
 
                 badSpaces.addAll(getBadSpaces(entries, teacher));
-            } catch (Exception e) {
-                continue;
+            } catch (Exception _) {
+
             }
         }
 
