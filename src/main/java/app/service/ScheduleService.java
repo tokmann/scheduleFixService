@@ -1,19 +1,12 @@
 package app.service;
 
 import app.model.*;
-import app.utils.GroupParse;
-import app.utils.TeacherParse;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import app.model.ScheduleEntry;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-
-import java.time.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,36 +18,18 @@ import java.util.concurrent.Future;
 public class ScheduleService {
 
     @Autowired
-    private HttpClientService httpClientService;
+    BadSpaceFinder badSpaceFinder;
 
-    @Autowired
-    private ICalService iCalService;
+    public static final ObjectMapper objectMapper = new ObjectMapper();
+    public static final String baseURL = "https://schedule-of.mirea.ru/schedule/api/search";
 
-    @Autowired
-    private EntriesSortingService entriesSortingService;
-
-    @Autowired
-    private ICalParser iCalParser;
-
-    @Autowired
-    private ScheduleConstant scheduleConstant;
-
-    @Autowired
-    private TeacherParse teacherParse;
-
-    @Autowired
-    private GroupParse groupParse;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final String baseURL = "https://schedule-of.mirea.ru/schedule/api/search";
-
-    private final ConcurrentHashMap<String, Future<List<BadSpace>>> tasks = new ConcurrentHashMap<>();
-    private final ExecutorService executor = Executors.newFixedThreadPool(5);
+    public final ConcurrentHashMap<String, Future<List<BadSpace>>> tasks = new ConcurrentHashMap<>();
+    public final ExecutorService executor = Executors.newFixedThreadPool(5);
 
     public String startBadSpaceSearch(String criteria) {
         String taskId = UUID.randomUUID().toString();
 
-        Future<List<BadSpace>> future = executor.submit(() -> findBadSpaces(criteria));
+        Future<List<BadSpace>> future = executor.submit(() -> badSpaceFinder.findBadSpaces(criteria));
 
         tasks.put(taskId, future);
 
@@ -65,7 +40,7 @@ public class ScheduleService {
     public String startAllBadSpaceSearch() {
         String taskId = UUID.randomUUID().toString();
 
-        Future<List<BadSpace>> future = executor.submit(() -> findAllBadSpaces());
+        Future<List<BadSpace>> future = executor.submit(() -> badSpaceFinder.findAllBadSpaces());
 
         tasks.put(taskId, future);
 
@@ -95,160 +70,4 @@ public class ScheduleService {
     public void shutdownExecutor() {
         executor.shutdown();
     }
-
-
-    public String getICalLink(String criteria) throws Exception {
-
-        String url = baseURL + "?limit=15&match=" + criteria;
-
-        String json = httpClientService.getJson(url);
-
-        JsonNode rootNode = objectMapper.readTree(json);
-        JsonNode dataNode = rootNode.path("data");
-        String iCalLink = "";
-        if (dataNode.isArray() && !dataNode.isEmpty()) {
-            iCalLink = dataNode.get(0).path("iCalLink").asText();
-        } else {
-            return null;
-        }
-        return iCalLink;
-    }
-
-    public List<BadSpace> getBadSpaces(List<ScheduleEntry> unsortedEntries, String victim) {
-        List<BadSpace> badSpaces = new ArrayList<>();
-
-        List<List<ScheduleEntry>> entriesDays = entriesSortingService.sortEntries(unsortedEntries);
-
-        System.out.println("Поиск badSpaces...");
-
-        for (List<ScheduleEntry> entryAtThisDay : entriesDays) {
-            if (entryAtThisDay.getFirst().getStartTime().toLocalDate().isAfter(scheduleConstant.TODAY_DATE)) {
-
-                if (entryAtThisDay.getFirst().getStartTime().toLocalTime().
-                        isAfter(scheduleConstant.LATE_START_THRESHOLD)) {
-                    String description = "Позднее начало пар в этот день: " +
-                            entryAtThisDay.getFirst().getStartTime().toLocalTime();
-                    BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null,
-                            victim, description);
-                    badSpaces.add(badSpace);
-                }
-
-
-                if (entryAtThisDay.size() == 1) {
-                    String description = "Одна пара в этот день";
-                    BadSpace badSpace = createBadSpace(entryAtThisDay.getFirst(), null, victim, description);
-                    badSpaces.add(badSpace);
-                }
-
-
-                for (int i = 0; i < entryAtThisDay.size() - 1; i++) {
-
-                    ScheduleEntry current = entryAtThisDay.get(i);
-                    ScheduleEntry next = entryAtThisDay.get(i + 1);
-
-                    Duration gap = Duration.between(current.getEndTime(), next.getStartTime());
-                    long gapTime = gap.toMinutes();
-
-                    String currentName = current.getName();
-                    String nextName = next.getName();
-
-                    String currentCampus = null;
-                    String nextCampus = null;
-                    if (current.getClassroom() != null) {
-                        currentCampus = current.getClassroom().split(" ")[1];
-
-                    }
-                    if (next.getClassroom() != null) {
-                        nextCampus = next.getClassroom().split(" ")[1];
-                    }
-
-
-                    if (currentName.contains("Физическая культура и спорт") && gapTime < 30) {
-                        String description = "Маленький перерыв после ФИЗО";
-                        BadSpace badSpace = createBadSpace(current, next, victim, description);
-                        badSpaces.add(badSpace);
-                    }
-                    if (gapTime > 100) {
-                        String description = "Длинное окно: " + gapTime + " минут";
-                        BadSpace badSpace = createBadSpace(current, next, victim, description);
-                        badSpaces.add(badSpace);
-                    }
-                    if (currentCampus != null && nextCampus != null && !nextCampus.equals("СДО")
-                            && !currentCampus.equals("СДО")) {
-                        if (!currentCampus.equals(nextCampus)) {
-                            String description = "Переход между корпусами";
-                            BadSpace badSpace = createBadSpace(current, next, victim, description);
-                            badSpaces.add(badSpace);
-                        }
-                    }
-                    if (nextName.contains("Физическая культура и спорт") && gapTime < 30) {
-                        String description = "Маленький перерыв после физо";
-                        BadSpace badSpace = createBadSpace(current, next, victim, description);
-                        badSpaces.add(badSpace);
-                    }
-                }
-            }
-        }
-        System.out.println("Поиск badSpaces завершен");
-        return badSpaces;
-    }
-
-    private static BadSpace createBadSpace(ScheduleEntry entry1, ScheduleEntry entry2,
-                                           String victim, String description) {
-        BadSpace badSpace = new BadSpace();
-        badSpace.setFirstEntry(entry1);
-        badSpace.setSecondEntry(entry2);
-        badSpace.setVictim(victim);
-        badSpace.setDescription(description);
-
-        return badSpace;
-    }
-
-
-    public List<BadSpace> findBadSpaces(String criteria) throws Exception {
-
-        String iCalLink = getICalLink(criteria);
-        String iCalContent = iCalService.getICalContent(iCalLink);
-        List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-        List<BadSpace> badSpaces = getBadSpaces(entries, criteria);
-
-        return badSpaces;
-    }
-
-    public List<BadSpace> findAllBadSpaces() throws Exception {
-        List<BadSpace> badSpaces = new ArrayList<>();
-
-        for (String group : groupParse.groups) {
-            if (group.length() == 10) {
-                try {
-                    String iCalLink = getICalLink(group);
-
-                    String iCalContent = iCalService.getICalContent(iCalLink);
-
-                    List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-
-                    badSpaces.addAll(getBadSpaces(entries, group));
-                } catch (Exception _) {
-
-                }
-            }
-        }
-
-        for (String teacher : teacherParse.teachersList) {
-            try {
-                String iCalLink = getICalLink(teacher);
-
-                String iCalContent = iCalService.getICalContent(iCalLink);
-
-                List<ScheduleEntry> entries = iCalParser.parseICalContent(iCalContent);
-
-                badSpaces.addAll(getBadSpaces(entries, teacher));
-            } catch (Exception _) {
-
-            }
-        }
-
-        return badSpaces;
-    }
-
 }

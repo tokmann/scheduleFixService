@@ -11,6 +11,8 @@ import java.util.List;
 import biweekly.property.*;
 import biweekly.util.ICalDate;
 import biweekly.util.Recurrence;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import java.time.format.DateTimeFormatter;
@@ -23,6 +25,8 @@ import java.util.regex.Pattern;
 @EnableAsync
 public class ICalParser {
 
+    private static final Logger logger = LoggerFactory.getLogger(ICalParser.class);
+
     public List<ScheduleEntry> parseICalContent(String iCalData) {
         List<ScheduleEntry> entries = new ArrayList<>();
         LocalDateTime today = LocalDateTime.now();
@@ -34,7 +38,7 @@ public class ICalParser {
         try {
             List<ICalendar> calendars = Biweekly.parse(iCalData).all();
             if (calendars.isEmpty()) {
-                System.out.println("Ошибка: iCalendar файл пуст или неверного формата.");
+                logger.error("Ошибка: iCalendar файл пуст или неверного формата.");
                 return null;
             }
 
@@ -100,7 +104,7 @@ public class ICalParser {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Ошибка парсинга ICAL: " + e.getMessage());
+            logger.error("Ошибка парсинга ICAL: " + e.getMessage());
         }
 
         return entries;
